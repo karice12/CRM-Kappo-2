@@ -1,9 +1,6 @@
-/* ──────────────────────────────────────────────
-   CONFIGURAÇÃO MANUAL DO BANCO DE DADOS
-   ────────────────────────────────────────────── */
 const SUPABASE_CONFIG = {
-  url: 'https://qvromhtadqksiylgotrq.supabase.co', 
-  key: 'SUA_ANON_KEY_AQUI' // <--- COLE AQUI A CHAVE QUE COMEÇA COM "ey..."
+  url: 'https://qvromhtadqksiylgotrq.supabase.co',
+  key: 'sb_publishable_5LNpGfaW6hqb7jXLaA4CQw_2QalW4x_'
 };
 
 const SupabaseClient = {
@@ -25,11 +22,18 @@ const SupabaseClient = {
         headers,
         body: data ? JSON.stringify(data) : undefined
       });
-      if (!res.ok) throw new Error(`Erro: ${res.statusText}`);
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Erro Supabase:", text);
+        throw new Error(text);
+      }
+
       return await res.json();
     } catch (err) {
-      console.error("Erro na requisição Supabase:", err);
-      return [];
+      console.error("Erro:", err);
+      if (window.Toast) Toast.error("Erro ao conectar com banco");
+      return null;
     }
   }
 };
@@ -43,22 +47,20 @@ const DB = {
     return false;
   },
 
-  // FUNÇÕES DE CLIENTES
   async getClientes() {
-    return await SupabaseClient.request('GET', 'clientes', null, '?order=nome.asc');
+    return await SupabaseClient.request('GET', 'clientes', null, '?select=*');
   },
 
   async salvarCliente(dados) {
     return await SupabaseClient.request('POST', 'clientes', dados);
   },
 
-  // FUNÇÕES FINANCEIRAS
   async getTransacoes() {
-    return await SupabaseClient.request('GET', 'financeiro', null, '?order=data.desc');
+    return await SupabaseClient.request('GET', 'fluxo_caixa', null, '?select=*');
   },
 
   async salvarTransacao(dados) {
-    return await SupabaseClient.request('POST', 'financeiro', dados);
+    return await SupabaseClient.request('POST', 'fluxo_caixa', dados);
   }
 };
 
@@ -74,5 +76,7 @@ const SessionManager = {
     const p = JSON.parse(atob(token));
     return (Date.now() < p.exp) ? p : null;
   },
-  destroy() { localStorage.removeItem(this.TOKEN_KEY); }
+  destroy() {
+    localStorage.removeItem(this.TOKEN_KEY);
+  }
 };
