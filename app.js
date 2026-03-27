@@ -5,60 +5,44 @@ const Utils = {
 };
 
 const Toast = {
-  show(msg) {
-    alert(msg);
-  },
-  success(msg) {
-    this.show(msg);
-  },
-  error(msg) {
-    this.show(msg);
-  }
+  success(msg) { alert(msg); },
+  error(msg) { alert(msg); }
 };
 
 const Modal = {
-  open(id) {
-    document.getElementById(id)?.classList.remove('hidden');
-  },
-  close(id) {
-    document.getElementById(id)?.classList.add('hidden');
-  }
+  open(id) { document.getElementById(id)?.classList.remove('hidden'); },
+  close(id) { document.getElementById(id)?.classList.add('hidden'); }
 };
 
 const App = {
   init() {
     const session = SessionManager.verify();
-    if (session) {
-      this.showApp(session.sub);
-    }
+    if (session) this.showApp(session.sub);
     this.bindEvents();
   },
 
-  showApp(userName) {
+  showApp(user) {
     document.getElementById('login-screen')?.classList.add('hidden');
     document.getElementById('app')?.classList.remove('hidden');
-    document.getElementById('sidebar-username').innerText = userName;
+    document.getElementById('sidebar-username').innerText = user;
     this.loadView('dashboard');
   },
 
   bindEvents() {
     // LOGIN
-    document.getElementById('btn-login').onclick = async () => {
+    document.getElementById('btn-login')?.addEventListener('click', async () => {
       const user = document.getElementById('login-user').value;
       const pass = document.getElementById('login-pass').value;
 
       const ok = await DB.login(user, pass);
 
-      if (ok) {
-        this.showApp(user);
-      } else {
-        Toast.error("Login inválido");
-      }
-    };
+      if (ok) this.showApp(user);
+      else Toast.error("Login inválido");
+    });
 
     // MENU
     document.querySelectorAll('.nav-item').forEach(link => {
-      link.onclick = (e) => {
+      link.addEventListener('click', () => {
         if (link.id === 'btn-logout') {
           SessionManager.destroy();
           location.reload();
@@ -67,13 +51,8 @@ const App = {
 
         const page = link.getAttribute('data-page');
         if (page) this.loadView(page);
-      };
+      });
     });
-
-    // FIX App.navigate
-    window.App.navigate = (page) => {
-      this.loadView(page);
-    };
 
     // BOTÃO NOVO CLIENTE
     document.getElementById('btn-novo-cliente')?.addEventListener('click', () => {
@@ -108,6 +87,10 @@ const App = {
     });
   },
 
+  navigate(page) {
+    this.loadView(page);
+  },
+
   loadView(view) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(`page-${view}`)?.classList.add('active');
@@ -120,12 +103,12 @@ const App = {
     const tbody = document.getElementById('tbody-clientes');
     if (!tbody) return;
 
-    tbody.innerHTML = "<tr><td colspan='8'>Carregando...</td></tr>";
+    tbody.innerHTML = "Carregando...";
 
     const clientes = await DB.getClientes();
 
     if (!clientes || clientes.length === 0) {
-      tbody.innerHTML = "<tr><td colspan='8'>Nenhum cliente</td></tr>";
+      tbody.innerHTML = "Nenhum cliente";
       return;
     }
 
@@ -134,26 +117,16 @@ const App = {
         <td>${c.nome}</td>
         <td>${c.whatsapp || '-'}</td>
         <td>${c.email || '-'}</td>
-        <td>${c.veiculos || 1}</td>
         <td>${c.dia_vencimento}</td>
         <td>${Utils.formatCurrency(c.valor_mensal)}</td>
         <td>${c.status}</td>
-        <td>-</td>
       </tr>
     `).join('');
   },
 
   async updateDashboard() {
     const clientes = await DB.getClientes();
-    const transacoes = await DB.getTransacoes();
-
     document.getElementById('val-clientes').innerText = clientes?.length || 0;
-
-    const total = (transacoes || [])
-      .filter(t => t.tipo === 'entrada')
-      .reduce((s, t) => s + t.valor, 0);
-
-    document.getElementById('val-faturamento').innerText = Utils.formatCurrency(total);
   }
 };
 
