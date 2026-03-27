@@ -1,133 +1,74 @@
+/**
+ * LÓGICA DO SISTEMA (app.js)
+ */
+
 const Utils = {
-  formatCurrency(val) {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
-  }
-};
-
-const Toast = {
-  success(msg) { alert(msg); },
-  error(msg) { alert(msg); }
-};
-
-const Modal = {
-  open(id) { document.getElementById(id)?.classList.remove('hidden'); },
-  close(id) { document.getElementById(id)?.classList.add('hidden'); }
+  formatCurrency(val) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0); },
+  formatDate(dateStr) {
+    if (!dateStr) return '—';
+    const [y, m, d] = dateStr.split('T')[0].split('-');
+    return `${d}/${m}/${y}`;
+  },
+  today() { return new Date().toISOString().split('T')[0]; }
 };
 
 const App = {
-  init() {
-    const session = SessionManager.verify();
-    if (session) this.showApp(session.sub);
-    this.bindEvents();
-  },
-
-  showApp(user) {
-    document.getElementById('login-screen')?.classList.add('hidden');
-    document.getElementById('app')?.classList.remove('hidden');
-    document.getElementById('sidebar-username').innerText = user;
-    this.loadView('dashboard');
-  },
-
-  bindEvents() {
-    // LOGIN
-    document.getElementById('btn-login')?.addEventListener('click', async () => {
-      const user = document.getElementById('login-user').value;
-      const pass = document.getElementById('login-pass').value;
-
-      const ok = await DB.login(user, pass);
-
-      if (ok) this.showApp(user);
-      else Toast.error("Login inválido");
-    });
-
-    // MENU
-    document.querySelectorAll('.nav-item').forEach(link => {
-      link.addEventListener('click', () => {
-        if (link.id === 'btn-logout') {
-          SessionManager.destroy();
-          location.reload();
-          return;
-        }
-
-        const page = link.getAttribute('data-page');
-        if (page) this.loadView(page);
-      });
-    });
-
-    // BOTÃO NOVO CLIENTE
-    document.getElementById('btn-novo-cliente')?.addEventListener('click', () => {
-      Modal.open('modal-cliente');
-    });
-
-    // SALVAR CLIENTE
-    document.getElementById('btn-save-cliente')?.addEventListener('click', async () => {
-      const nome = document.getElementById('cli-nome').value;
-
-      if (!nome) {
-        Toast.error("Nome obrigatório");
-        return;
-      }
-
-      const dados = {
-        nome,
-        whatsapp: document.getElementById('cli-whatsapp').value,
-        dia_vencimento: parseInt(document.getElementById('cli-vencimento').value) || 10,
-        valor_mensal: parseFloat(document.getElementById('cli-valor').value) || 0,
-        status: 'ativo'
-      };
-
-      const res = await DB.salvarCliente(dados);
-
-      if (res) {
-        Toast.success("Salvo!");
-        Modal.close('modal-cliente');
-        this.loadClientes();
-        this.updateDashboard();
-      }
-    });
-  },
-
-  navigate(page) {
-    this.loadView(page);
-  },
-
-  loadView(view) {
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById(`page-${view}`)?.classList.add('active');
-
-    if (view === 'dashboard') this.updateDashboard();
-    if (view === 'clientes') this.loadClientes();
-  },
-
-  async loadClientes() {
-    const tbody = document.getElementById('tbody-clientes');
-    if (!tbody) return;
-
-    tbody.innerHTML = "Carregando...";
-
-    const clientes = await DB.getClientes();
-
-    if (!clientes || clientes.length === 0) {
-      tbody.innerHTML = "Nenhum cliente";
+  async init() {
+    const user = SessionManager.getUser();
+    if (!user) {
+      document.getElementById('login-screen').classList.add('active');
       return;
     }
 
-    tbody.innerHTML = clientes.map(c => `
-      <tr>
-        <td>${c.nome}</td>
-        <td>${c.whatsapp || '-'}</td>
-        <td>${c.email || '-'}</td>
-        <td>${c.dia_vencimento}</td>
-        <td>${Utils.formatCurrency(c.valor_mensal)}</td>
-        <td>${c.status}</td>
-      </tr>
-    `).join('');
+    // Se estiver logado, esconde login e mostra o painel
+    document.getElementById('login-screen').classList.remove('active');
+    
+    // Inicia as páginas (Dashboard por padrão)
+    this.loadDashboard();
+    this.setupEventListeners();
   },
 
-  async updateDashboard() {
-    const clientes = await DB.getClientes();
-    document.getElementById('val-clientes').innerText = clientes?.length || 0;
+  async loadDashboard() {
+    try {
+      const clientes = await DB.getClientes();
+      const transacoes = await DB.getTransacoes();
+      
+      // Atualiza os números no topo do painel
+      document.getElementById('count-clientes').innerText = clientes.length;
+      
+      let total = 0;
+      transacoes.forEach(t => {
+        if(t.tipo === 'entrada') total += parseFloat(t.valor);
+        if(t.tipo === 'saida') total -= parseFloat(t.valor);
+      });
+      
+      document.getElementById('saldo-total').innerText = Utils.formatCurrency(total);
+    } catch (e) {
+      console.error("Erro ao carregar dados:", e);
+    }
+  },
+
+  setupEventListeners() {
+    // Botão de Sair
+    const btnSair = document.getElementById('btn-logout');
+    if(btnSair) btnSair.onclick = () => SessionManager.destroy();
   }
 };
 
-document.addEventListener('DOMContentLoaded', () => App.init());
+// Função de Login acionada pelo botão do HTML
+async function realizarLogin() {
+  const user = document.getElementById('login-user').value;
+  const pass = document.getElementById('login-pass').value;
+
+  const sucesso = await DB.login(user, pass);
+  
+  if (sucesso) {
+    // Recarrega a página para o App.init() identificar a nova sessão
+    window.location.reload();
+  } else {
+    alert("Usuário ou senha incorretos! Tente admin / admin123");
+  }
+}
+
+// Inicializa o sistema ao carregar a página
+window.onload = () => App.init();
